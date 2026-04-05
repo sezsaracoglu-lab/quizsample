@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teratogens — Interactive Quiz</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0e0c;
+  --surface: #181613;
+  --card: #1d1b17;
+  --border: #2a2720;
+  --accent-sub: #e8a84c;
+  --accent-med: #4a9fd8;
+  --accent-ill: #d95f5f;
+  --accent-inf: #9b6dd4;
+  --accent-env: #4caf7a;
+  --text: #ede7dc;
+  --muted: #7a7060;
+  --gold: #c9a96e;
+  --correct: #52c47a;
+  --wrong: #e05c5c;
+  --reveal: #c9a96e;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse 70% 40% at 15% 5%, rgba(232,168,76,.07) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 35% at 85% 90%, rgba(74,159,216,.05) 0%, transparent 55%);
+  pointer-events:none; z-index:0;
+}
+
+/* ── HEADER ── */
+.header {
+  position:relative; z-index:1;
+  text-align:center;
+  padding: 44px 24px 28px;
+  border-bottom: 1px solid var(--border);
+}
+.eyebrow {
+  font-size:11px; letter-spacing:4px; text-transform:uppercase;
+  color:var(--gold); margin-bottom:10px;
+}
+.header h1 {
+  font-family:'Playfair Display',serif;
+  font-size: clamp(26px,5vw,46px);
+  font-weight:700; line-height:1.1;
+}
+.header h1 em { font-style:italic; color:var(--gold); }
+.header-sub { margin-top:10px; color:var(--muted); font-size:14px; }
+
+/* ── LEGEND ── */
+.legend {
+  display:flex; gap:14px; justify-content:center; flex-wrap:wrap;
+  padding:16px 24px; border-bottom:1px solid var(--border);
+  position:relative; z-index:1;
+}
+.leg { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.leg-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* ── STICKY PROGRESS ── */
+.sticky-bar {
+  position:sticky; top:0; z-index:100;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+  padding:10px 20px;
+  display:flex; align-items:center; gap:14px;
+}
+.pb-wrap { flex:1; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.pb-fill {
+  height:100%;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--correct) 100%);
+  border-radius:2px; transition:width .5s cubic-bezier(.4,0,.2,1);
+  width:0%;
+}
+.pb-label { font-size:12px; color:var(--muted); white-space:nowrap; }
+.score-pill {
+  font-size:12px; font-weight:600;
+  padding:4px 12px; border-radius:20px;
+  background:rgba(201,169,110,.12); color:var(--gold);
+  white-space:nowrap;
+}
+
+/* ── ONE-QUESTION-AT-A-TIME LAYOUT ── */
+.quiz-stage {
+  max-width:720px; margin:0 auto;
+  padding:40px 20px 80px;
+  position:relative; z-index:1;
+}
+
+/* question counter */
+.q-counter {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:20px;
+}
+.q-num-label {
+  font-size:12px; letter-spacing:3px; text-transform:uppercase; color:var(--muted);
+}
+.cat-pill {
+  font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+  padding:4px 10px; border-radius:20px; font-weight:600;
+}
+.cat-substances  { background:rgba(232,168,76,.15);  color:var(--accent-sub); }
+.cat-medications { background:rgba(74,159,216,.15);  color:var(--accent-med); }
+.cat-illegal     { background:rgba(217,95,95,.15);   color:var(--accent-ill); }
+.cat-infectious  { background:rgba(155,109,212,.15); color:var(--accent-inf); }
+.cat-environmental { background:rgba(76,175,122,.15);color:var(--accent-env); }
+
+/* question card */
+.q-card {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+  transition:border-color .3s;
+}
+
+.q-text-wrap {
+  padding:28px 28px 22px;
+}
+.q-text {
+  font-family:'Playfair Display', serif;
+  font-size:clamp(16px,2.5vw,19px);
+  line-height:1.65;
+  color:var(--text);
+  font-weight:600;
+}
+
+/* options */
+.options { display:grid; gap:0; }
+
+.opt-btn {
+  display:flex; align-items:flex-start; gap:14px;
+  padding:16px 24px;
+  background:transparent;
+  border:none;
+  border-top:1px solid var(--border);
+  cursor:pointer;
+  text-align:left;
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;
+  color: #c8c0b4;
+  line-height:1.55;
+  transition:background .18s, color .18s;
+  width:100%;
+}
+.opt-btn:hover:not(:disabled) {
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+}
+.opt-btn:hover:not(:disabled) .opt-letter {
+  border-color:var(--gold);
+  color:var(--gold);
+}
+
+.opt-letter {
+  min-width:26px; height:26px;
+  border-radius:50%;
+  border:1.5px solid var(--border);
+  color:var(--muted);
+  font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; margin-top:1px;
+  transition:all .2s;
+}
+
+/* answered states */
+.opt-btn.correct-ans {
+  background:rgba(82,196,122,.1) !important;
+  color:#a8ddb9 !important;
+}
+.opt-btn.correct-ans .opt-letter {
+  background:var(--correct);
+  border-color:var(--correct);
+  color:#0f1a13 !important;
+}
+.opt-btn.wrong-ans {
+  background:rgba(224,92,92,.1) !important;
+  color:#e8a8a8 !important;
+}
+.opt-btn.wrong-ans .opt-letter {
+  background:var(--wrong);
+  border-color:var(--wrong);
+  color:#fff !important;
+}
+.opt-btn.reveal-ans {
+  background:rgba(201,169,110,.08) !important;
+  color:#e0d0b0 !important;
+}
+.opt-btn.reveal-ans .opt-letter {
+  background:var(--reveal);
+  border-color:var(--reveal);
+  color:var(--bg) !important;
+}
+
+/* icons inside letter on correct/wrong */
+.opt-btn.correct-ans .opt-letter::after { content:'✓'; }
+.opt-btn.wrong-ans   .opt-letter::after { content:'✗'; }
+.opt-btn.reveal-ans  .opt-letter::after { content:'★'; font-size:9px; }
+.opt-btn.correct-ans .opt-letter-txt,
+.opt-btn.wrong-ans   .opt-letter-txt,
+.opt-btn.reveal-ans  .opt-letter-txt { display:none; }
+
+/* FEEDBACK PANEL */
+.feedback-panel {
+  margin:0;
+  overflow:hidden;
+  max-height:0;
+  transition:max-height .45s cubic-bezier(.4,0,.2,1), opacity .3s;
+  opacity:0;
+}
+.feedback-panel.visible {
+  max-height:300px;
+  opacity:1;
+}
+.feedback-inner {
+  padding:20px 24px;
+  border-top:1px solid var(--border);
+  display:flex; gap:14px; align-items:flex-start;
+}
+.fb-icon {
+  width:32px; height:32px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:15px; flex-shrink:0; margin-top:1px;
+}
+.fb-icon.c { background:rgba(82,196,122,.15); }
+.fb-icon.w { background:rgba(224,92,92,.15); }
+.fb-text { font-size:13.5px; line-height:1.65; }
+.fb-verdict {
+  font-weight:600; font-size:13px; letter-spacing:.5px;
+  text-transform:uppercase; margin-bottom:5px;
+}
+.fb-verdict.c { color:var(--correct); }
+.fb-verdict.w { color:var(--wrong); }
+.fb-exp { color:#b8ae9e; }
+.fb-exp strong { color:var(--text); }
+
+/* NEXT BUTTON */
+.next-wrap {
+  margin-top:22px; text-align:right;
+}
+.next-btn {
+  padding:12px 30px;
+  background:var(--gold);
+  color:var(--bg);
+  border:none; border-radius:8px;
+  font-family:'DM Sans',sans-serif;
+  font-size:14px; font-weight:600;
+  cursor:pointer; letter-spacing:.5px;
+  transition:all .2s;
+  opacity:0; transform:translateY(6px);
+  pointer-events:none;
+}
+.next-btn.show {
+  opacity:1; transform:translateY(0);
+  pointer-events:auto;
+}
+.next-btn:hover { background:#d4b080; transform:translateY(-2px); }
+
+/* dot progress trail */
+.dot-trail {
+  display:flex; gap:5px; flex-wrap:wrap;
+  justify-content:center;
+  margin-bottom:24px;
+}
+.dot {
+  width:10px; height:10px; border-radius:50%;
+  background:var(--border);
+  transition:background .3s;
+  flex-shrink:0;
+}
+.dot.answered-c { background:var(--correct); }
+.dot.answered-w { background:var(--wrong); }
+.dot.current    { background:var(--gold); box-shadow:0 0 6px rgba(201,169,110,.5); }
+
+/* ── RESULTS ── */
+.results {
+  display:none;
+  text-align:center;
+  animation:fadeUp .5s ease forwards;
+}
+.results.show { display:block; }
+
+@keyframes fadeUp {
+  from{opacity:0;transform:translateY(16px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+.results-card {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:50px 40px;
+}
+.results-big {
+  font-family:'Playfair Display',serif;
+  font-size:80px; color:var(--gold); line-height:1;
+}
+.results-of { font-size:20px; color:var(--muted); margin-top:4px; margin-bottom:30px; }
+
+.breakdown {
+  display:flex; gap:32px; justify-content:center; flex-wrap:wrap;
+  margin-bottom:28px;
+}
+.bk { display:flex; flex-direction:column; gap:6px; align-items:center; }
+.bk-n { font-size:36px; font-weight:700; }
+.bk-n.c { color:var(--correct); }
+.bk-n.w { color:var(--wrong); }
+.bk-l { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+
+.results-msg {
+  font-family:'Playfair Display',serif;
+  font-style:italic; font-size:19px; color:var(--text);
+  margin-bottom:32px; line-height:1.5;
+}
+
+/* Category breakdown */
+.cat-breakdown {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px; margin-bottom:36px;
+}
+.cat-bk-item {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px 16px;
+}
+.cat-bk-name { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px; }
+.cat-bk-score { font-size:22px; font-weight:700; }
+.cat-bk-score.perfect { color:var(--correct); }
+.cat-bk-score.good    { color:var(--gold); }
+.cat-bk-score.needs   { color:var(--wrong); }
+
+.restart-btn {
+  padding:15px 44px;
+  background:var(--gold); color:var(--bg);
+  border:none; border-radius:8px;
+  font-family:'DM Sans',sans-serif;
+  font-size:15px; font-weight:600; cursor:pointer; letter-spacing:.5px;
+  transition:all .2s;
+}
+.restart-btn:hover { background:#d4b080; transform:translateY(-2px); }
+
+@media(max-width:600px){
+  .q-text-wrap { padding:22px 18px 16px; }
+  .opt-btn { padding:14px 18px; }
+  .feedback-inner { padding:16px 18px; }
+  .results-card { padding:36px 22px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">Developmental Psychology · Shaffer & Kipp</div>
+  <h1>Teratogens <em>Quiz</em></h1>
+  <div class="header-sub">50 Questions — Click an answer to get instant feedback</div>
+</div>
+
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:var(--accent-sub)"></div>Substances</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--accent-med)"></div>Medications</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--accent-ill)"></div>Illegal Drugs</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--accent-inf)"></div>Infectious Agents</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--accent-env)"></div>Environmental</div>
+</div>
+
+<div class="sticky-bar">
+  <div class="pb-wrap"><div class="pb-fill" id="pbFill"></div></div>
+  <div class="pb-label" id="pbLabel">Question 1 of 50</div>
+  <div class="score-pill" id="scorePill">✓ 0 &nbsp;✗ 0</div>
+</div>
+
+<div class="quiz-stage" id="stage"></div>
+
+<script>
+const questions = [
+  // SUBSTANCES
+  {cat:"substances",q:"How much caffeine consumption per day is associated with miscarriage and low birth weight?",opts:["More than 1 cup per day","More than 2 cups per day","More than 4 cups or sodas per day","More than 8 cups per day"],ans:2,exp:"Consuming <strong>more than 4 cups or sodas per day</strong> is the threshold linked to miscarriage and low birth weight. Some countries like the Netherlands advise complete avoidance during pregnancy."},
+  {cat:"substances",q:"Why is nicotine dose considered higher in the infant than in the mother?",opts:["The fetal kidneys cannot excrete nicotine","Nicotine diffuses rapidly through the placenta and concentrates in fetal tissue","Nicotine is produced independently by the fetus","Nicotine binds exclusively to fetal blood cells"],ans:1,exp:"Nicotine crosses the placenta rapidly via diffusion, resulting in <strong>higher concentrations in the fetus</strong> than in the mother. This makes even moderate maternal smoking more dangerous than it may appear."},
+  {cat:"substances",q:"Which outcome is directly caused by impaired placental function from maternal smoking?",opts:["Accelerated fetal growth","Reduced risk of ectopic pregnancy","Fetal growth retardation and low birth weight","Increased fetal hemoglobin production"],ans:2,exp:"Smoking impairs <strong>oxygen and nutrient exchange</strong> through the placenta, directly causing fetal growth retardation and low-birth-weight deliveries."},
+  {cat:"substances",q:"An ectopic pregnancy occurs when the zygote implants in which location?",opts:["The cervix","The uterine wall","The fallopian tube","The ovary"],ans:2,exp:"In an ectopic pregnancy, the zygote implants in the <strong>fallopian tube</strong> rather than the uterus. Maternal smoking increases the incidence of this dangerous complication."},
+  {cat:"substances",q:"How does smoking interact with other teratogens during pregnancy?",opts:["It neutralises other teratogens","It slows transport of other teratogens","It potentiates other teratogens by increasing their transport across the placenta","It has no interaction with other teratogens"],ans:2,exp:"Smoking <strong>potentiates other teratogens</strong> by increasing their transport across the placenta, which compounds the developmental harm caused by any co-existing substance exposure."},
+  {cat:"substances",q:"What is the primary mechanism by which nicotine elevates fetal heart rate?",opts:["Blocking cardiac ion channels","Binding to nicotinic acetylcholine receptors, triggering adrenaline release","Reducing placental oxygen supply directly","Increasing maternal blood pressure only"],ans:1,exp:"Nicotine binds to <strong>nicotinic acetylcholine receptors</strong> in the autonomic nervous system and triggers epinephrine (adrenaline) release, which elevates fetal heart rate."},
+  {cat:"substances",q:"Chronic prenatal nicotine exposure impairs regulation of which functions after birth, contributing to SIDS?",opts:["Digestion and temperature","Breathing and heart rate self-regulation","Vision and hearing","Motor coordination"],ans:1,exp:"Nicotine disrupts development of the <strong>fetal autonomic nervous system</strong>, leaving the infant unable to properly self-regulate breathing and heart rate — a key SIDS mechanism."},
+  {cat:"substances",q:"Which statement best describes the INDIRECT teratogenic effect of alcohol?",opts:["It directly destroys fetal cortical neurons","It directly causes facial abnormalities","It compromises placental functioning throughout the entire pregnancy","It blocks transfer of maternal antibodies"],ans:2,exp:"Alcohol's indirect effect is <strong>compromising placental functioning throughout the entire pregnancy</strong>, restricting nutrient and oxygen delivery to the developing fetus."},
+  {cat:"substances",q:"Which THREE criteria are ALL required to diagnose Fetal Alcohol Syndrome (FAS)?",opts:["Low IQ + behavioral issues + heart defects","Growth deficiency + facial abnormalities + CNS dysfunction","Microcephaly + hyperactivity + low birth weight","Miscarriage history + motor problems + attention deficit"],ans:1,exp:"FAS requires the full triad: <strong>growth deficiency + characteristic facial abnormalities</strong> (e.g. flattened philtrum, thin upper lip) <strong>+ CNS dysfunction</strong>. Missing any one criterion means FAE, not FAS."},
+  {cat:"substances",q:"How does Fetal Alcohol Effects (FAE) differ from FAS regarding physical presentation?",opts:["FAE causes more severe deformities than FAS","FAE and FAS have identical physical profiles","In FAE, physical features may be subtle or absent — primarily cognitive/behavioral","FAE only affects the heart, not the brain"],ans:2,exp:"FAE results from <strong>lower or inconsistent alcohol exposure</strong>. Physical features may be subtle or absent, with the profile dominated by learning difficulties, attention and memory problems, and behavioral issues."},
+  {cat:"substances",q:"Prenatal marijuana exposure particularly disrupts the functioning of which brain structure?",opts:["The prefrontal cortex","The cerebellum","The basal nucleus of the amygdala","The hippocampus"],ans:2,exp:"Marijuana changes the functioning of the <strong>basal nucleus of the amygdala</strong>, which regulates emotional behavior. Effects are especially pronounced in boys."},
+  {cat:"substances",q:"Paternal alcohol use is associated with which outcome in offspring?",opts:["No known effects on the fetus","Reduced sperm motility, lower count, abnormal sperm, and lower birth weight in the child","Only genetic mutations in the next generation","Reduced risk of miscarriage"],ans:1,exp:"Alcohol affects fathers too: it causes <strong>reduced sperm motility, lower count, and abnormal sperm</strong>, and paternal drinking is associated with lower birth weight in offspring."},
+
+  // MEDICATIONS
+  {cat:"medications",q:"Which specific medication is associated with heart defects during the first trimester?",opts:["Ibuprofen","Thalidomide","Lithium","Aspirin"],ans:2,exp:"<strong>Lithium</strong>, used as a mood stabiliser, carries a specific risk of cardiac defects when taken during the critical first trimester of organogenesis."},
+  {cat:"medications",q:"Thalidomide was originally sold in the 1960s to treat which pregnancy condition?",opts:["Gestational diabetes","High blood pressure","Morning sickness","Postpartum depression"],ans:2,exp:"Thalidomide was marketed to alleviate <strong>morning sickness (nausea)</strong> during pregnancy, leading to widespread use before its catastrophic teratogenic effects were discovered."},
+  {cat:"medications",q:"The term 'phocomelia' describes which deformity caused by thalidomide?",opts:["Underdeveloped heart chambers","Structural limb abnormalities — parts or all of limbs missing, feet attached directly to torso","Brain malformations","Absence of eyes and ears"],ans:1,exp:"Phocomelia is the structural abnormality where <strong>all or parts of the limbs are missing</strong>, with extremities such as feet attached directly to the torso. This was the signature deformity of the thalidomide tragedy."},
+  {cat:"medications",q:"Which organ systems are deformed by thalidomide exposure?",opts:["Liver, kidneys, and lungs","Eyes, ears, nose, and heart","Brain, spinal cord, and skin","Digestive and reproductive organs"],ans:1,exp:"Thalidomide caused deformities of the <strong>eyes, ears, nose, and heart</strong>, in addition to the characteristic limb deformities (phocomelia)."},
+  {cat:"medications",q:"What specific neonatal risk does Ibuprofen carry when taken in the third trimester?",opts:["Cardiac malformations","Fetal growth retardation","Increased risk of prolonged delivery and pulmonary hypertension in newborns","Cognitive deficits in childhood"],ans:2,exp:"Ibuprofen in the <strong>third trimester</strong> specifically increases risk of <strong>prolonged delivery and pulmonary hypertension</strong> in newborns — different from first-trimester concerns."},
+  {cat:"medications",q:"Aspirin during pregnancy is associated with which serious outcomes?",opts:["Only minor headaches in the mother","Fetal growth retardation, poor motor control, and possibly infant death","Reduced risk of miscarriage","Improved placental circulation"],ans:1,exp:"Aspirin is linked to <strong>fetal growth retardation, poor motor control, and even infant death</strong> — making it generally contraindicated during pregnancy."},
+  {cat:"medications",q:"Diethylstilbestrol (DES) was prescribed between the 1940s and 1965 to prevent which complication?",opts:["Gestational hypertension","Morning sickness","Miscarriages","Neural tube defects"],ans:2,exp:"DES was prescribed to <strong>prevent miscarriages</strong>, but was later found to affect the reproductive organs of exposed daughters and increase their risk of a rare cervical cancer."},
+  {cat:"medications",q:"What is the primary ethical argument IN FAVOUR of allowing antidepressants during pregnancy?",opts:["Antidepressants have no known teratogenic effects","Untreated severe depression carries its own risks: neglect, suicidal ideation, and cortisol crossing the placenta","CBT is never effective in pregnancy","Fetal brains are immune to stress hormones"],ans:1,exp:"Untreated severe depression poses <strong>real fetal risks</strong>: neglect of nutrition and prenatal care, suicidal ideation, and cortisol from depression crossing the placenta and harming fetal brain development."},
+  {cat:"medications",q:"SSRIs taken in the third trimester are specifically linked to which neonatal syndrome?",opts:["Neonatal abstinence syndrome","Neonatal adaptation syndrome (tremors, feeding problems, irritability)","Sudden infant death syndrome","Neonatal respiratory distress syndrome"],ans:1,exp:"<strong>Neonatal adaptation syndrome</strong> — characterised by tremors, feeding problems, and irritability in newborns — is the specific concern with SSRI use in the third trimester."},
+  {cat:"medications",q:"When should antidepressant use generally be RESTRICTED during pregnancy, according to the ethical framework?",opts:["Always, for all women","Only in the third trimester","For mild-to-moderate depression manageable with therapy, especially during the first trimester","After 20 weeks gestation"],ans:2,exp:"The guideline is to <strong>restrict</strong> antidepressants for mild-to-moderate depression that can be managed through therapy (e.g. CBT), particularly during the <strong>first trimester</strong> when organ formation is most vulnerable."},
+
+  // ILLEGAL DRUGS
+  {cat:"illegal",q:"What proportion of infants born to heroin or methadone users experience a difficult first month due to withdrawal?",opts:["10–20%","30–50%","60–80%","Over 90%"],ans:2,exp:"<strong>60–80% of infants</strong> born to heroin or methadone users face a difficult first month due to withdrawal, even though they show no gross physical abnormalities."},
+  {cat:"illegal",q:"For how long can withdrawal symptoms persist in infants prenatally exposed to heroin or addictive narcotics?",opts:["1 week","2 weeks","1 month","Up to 4 months"],ans:3,exp:"Withdrawal symptoms including <strong>tremors, restlessness, and sleep disturbances</strong> can persist for up to <strong>4 months</strong> in infants born to heroin or methadone-using mothers."},
+  {cat:"illegal",q:"Heroin/methadone exposure in utero is NOT typically associated with which outcome?",opts:["Higher incidence of miscarriage","Gross physical abnormalities","Premature delivery","Infant death"],ans:1,exp:"Unlike many teratogens, heroin and methadone <strong>do not cause gross physical abnormalities</strong>. However, they do increase risks of miscarriage, premature delivery, and infant death."},
+  {cat:"illegal",q:"What is the primary physiological mechanism by which cocaine harms the fetus?",opts:["It directly destroys cortical neurons","It constricts blood vessels in mother and fetus, elevating blood pressure and reducing O₂/nutrients","It disrupts fetal genetic transcription","It blocks placental enzyme activity"],ans:1,exp:"Cocaine <strong>constricts blood vessels</strong> in both mother and fetus, which elevates fetal blood pressure and dramatically reduces the supply of oxygen and nutrients — causing cascading harm."},
+  {cat:"illegal",q:"Which of the following is an INDIRECT harm caused by prenatal cocaine exposure?",opts:["Structural brain damage","Blood vessel constriction","Disruption of parent–child attachment through infant irritability","Language delays"],ans:2,exp:"Cocaine-exposed infants are often <strong>irritable</strong>, which creates bonding difficulties, indirectly <strong>disrupting parent–child attachment</strong> and potentially leading to insecure attachment outcomes."},
+  {cat:"illegal",q:"Prenatal cocaine exposure disrupts which brain region's development, impairing executive function?",opts:["The cerebellum","The brainstem","The prefrontal cortex","The occipital lobe"],ans:2,exp:"Cocaine specifically disrupts <strong>prefrontal cortex development</strong>, which underpins executive functions including planning, working memory, cognitive flexibility, and inhibitory control."},
+  {cat:"illegal",q:"Which language-related deficit is specifically associated with prenatal cocaine exposure?",opts:["Difficulty understanding tone","Impaired expressive and receptive language development, slower vocabulary acquisition","Only expressive language is affected","Loss of previously acquired words"],ans:1,exp:"Prenatal cocaine exposure causes <strong>impaired expressive and receptive language development</strong>, slower vocabulary acquisition, and poorer verbal memory — one of the three key cognitive domains affected."},
+  {cat:"illegal",q:"A cocaine-exposed child struggles to shift between mental rules on a task. Which domain is impaired?",opts:["Attention","Verbal memory","Cognitive flexibility (executive function)","Visuospatial processing"],ans:2,exp:"Shifting between mental rules tests <strong>cognitive flexibility</strong>, a component of executive function — one of three key cognitive domains impaired by prenatal cocaine exposure alongside attention and language."},
+  {cat:"illegal",q:"What behavioral cluster do cocaine-exposed infants typically show in early infancy?",opts:["Increased sociability and visual tracking","Tremors, sleep disturbances, and sluggish inattention to environment","Hypersensitivity to touch and noise","Excessive crying with normal motor tone"],ans:1,exp:"Cocaine-exposed infants characteristically show <strong>tremors, sleep disturbances, and sluggish inattention</strong> to their surroundings in the first weeks and months of life."},
+  {cat:"illegal",q:"What feature do heroin withdrawal in infants AND cocaine-exposed infants SHARE in early infancy?",opts:["Gross physical abnormalities","Cardiac defects","Tremors and sleep disturbances","Accelerated motor development"],ans:2,exp:"Both heroin-withdrawal infants and cocaine-exposed infants share <strong>tremors and sleep disturbances</strong> in early infancy, though the underlying mechanisms differ."},
+
+  // INFECTIOUS AGENTS
+  {cat:"infectious",q:"What proportion of newborns infected with genital herpes die?",opts:["Less than 5%","About 10–15%","One third","Over half"],ans:2,exp:"Genital herpes is extremely dangerous for newborns — approximately <strong>one third</strong> of all infected newborns die. This makes prevention through caesarean delivery critical."},
+  {cat:"infectious",q:"Among surviving herpes-infected newborns, what proportion develop blindness, brain damage, or neurological disorders?",opts:["Less than 5%","25–30%","50–60%","Over 75%"],ans:1,exp:"Among those who survive, another <strong>25–30%</strong> develop blindness, brain damage, and other serious neurological disorders — making the total morbidity from neonatal herpes extremely high."},
+  {cat:"infectious",q:"How is genital herpes most commonly transmitted to a newborn?",opts:["Transplacentally during the first trimester","Through breast milk postnatally","During birth via contact with the mother's genitals","Via respiratory droplets after delivery"],ans:2,exp:"Most herpes infections in newborns occur <strong>during the birth process</strong> through direct contact with the mother's genitals. <strong>Caesarean delivery</strong> is the recommended prevention strategy."},
+  {cat:"infectious",q:"Rubella (German Measles) causes the most severe harm when contracted during which stage?",opts:["Third trimester","After 20 weeks","Early in pregnancy","During labour"],ans:2,exp:"Rubella is most harmful <strong>early in pregnancy</strong>, when it can cause blindness. The severity of all rubella effects depends on the timing of the infection."},
+  {cat:"infectious",q:"Which of the following is NOT a listed effect of rubella?",opts:["Blindness","Cardiac abnormalities","Deafness","Limb deformities (phocomelia)"],ans:3,exp:"Rubella is associated with <strong>blindness, deafness, cardiac abnormalities, and mental retardation</strong>. Limb deformities (phocomelia) are caused by <strong>thalidomide</strong>, not rubella."},
+  {cat:"infectious",q:"Toxoplasmosis is caused by which type of pathogen?",opts:["A virus","A bacterium","A single-celled parasite","A fungus"],ans:2,exp:"Toxoplasmosis is caused by <strong>Toxoplasma gondii</strong>, a single-celled parasite acquired through contact with cat feces or raw/undercooked meat. Adults typically only experience mild cold-like symptoms."},
+  {cat:"infectious",q:"When toxoplasmosis occurs LATER in pregnancy, what outcome is most likely?",opts:["Eye and brain damage","Cardiac abnormalities","Miscarriage","Limb deformities"],ans:2,exp:"Toxoplasmosis timing matters: first-trimester exposure causes <strong>eye and brain damage</strong>, while exposure <strong>later in pregnancy</strong> is more likely to result in <strong>miscarriage</strong>."},
+  {cat:"infectious",q:"Why is syphilis most harmful after the fourth month of pregnancy?",opts:["The fetal immune system is immature after this point","The Langhans cell layer breaks down at 16–18 weeks, allowing bacteria to cross the placenta","Fetal organs become more vulnerable in the second trimester","Blood flow to the fetus increases dramatically after week 16"],ans:1,exp:"Before the 4th month, the <strong>Langhans cell layer</strong> in the placenta blocks Treponema pallidum bacteria. After it breaks down at <strong>16–18 weeks</strong>, bacteria can freely infect the fetus."},
+  {cat:"infectious",q:"What treatment can prevent fetal syphilis infection if given in the first trimester?",opts:["Antiretroviral therapy","Corticosteroids","Penicillin (antibiotic treatment)","Vaccination"],ans:2,exp:"<strong>Early detection and penicillin treatment</strong> in the first trimester — before the Langhans cell layer breaks down — can prevent fetal infection entirely. This is why early prenatal screening is so important."},
+  {cat:"infectious",q:"Regarding HIV, which statement is most accurate?",opts:["All babies born to HIV-positive mothers are infected","Less than 25% of babies of infected mothers are born with HIV; mothers can take antivirals","HIV is never transmitted during pregnancy","Only caesarean delivery prevents HIV transmission"],ans:1,exp:"<strong>Fewer than 25%</strong> of babies born to HIV-positive mothers acquire the virus. Mothers can take <strong>antiretroviral medications</strong> to further reduce transmission risk during pregnancy and birth."},
+
+  // ENVIRONMENTAL
+  {cat:"environmental",q:"What does the ALARA principle stand for in the context of radiation safety?",opts:["Always Limit All Radiological Activity","As Low As Reasonably Achievable","Avoid Large Radiation Areas","All Laboratory Radiation Avoided"],ans:1,exp:"<strong>ALARA = As Low As Reasonably Achievable</strong>. This principle guides all decisions about minimising radiation exposure, particularly important for pregnant women."},
+  {cat:"environmental",q:"Why is MRI preferred over CT scans for pregnant women requiring medical imaging?",opts:["MRI provides lower-resolution images","CT scans take longer to complete","CT scans use higher radiation than X-rays; MRI uses no ionising radiation at all","MRI is always less expensive"],ans:2,exp:"CT scans deliver significantly <strong>more radiation than standard X-rays</strong>. MRI uses <strong>no ionising radiation</strong> (magnetic fields instead), making it far safer during pregnancy."},
+  {cat:"environmental",q:"A pregnant woman works in a radiology department. What does the guideline recommend?",opts:["Continue work with a lead apron only","Limit shifts to four hours","Request reassignment to a lower radiation environment","Wear a dosimeter and work as normal"],ans:2,exp:"Pregnant women in <strong>radiology, nuclear medicine, or aviation</strong> (cosmic radiation) are advised to <strong>request reassignment</strong> to reduce cumulative radiation exposure to the fetus."},
+  {cat:"environmental",q:"Which specific environmental chemicals are linked to physical deformities AND mental retardation in embryos/fetuses?",opts:["Common food additives","Cosmetic preservatives","Heavy metals (lead, zinc, mercury)","Airborne pollens"],ans:2,exp:"<strong>Heavy metals — lead, zinc, and mercury</strong> — cause physical deformities and mental retardation in the embryo/fetus, distinguishing them from other pollutants whose effects are currently unknown."},
+  {cat:"environmental",q:"The 'dose effect' of chemical/pollutant teratogens refers to which phenomenon?",opts:["Higher dose means better fetal outcomes","Exposure during AND after pregnancy/breastfeeding causes continuing neurological and pathological damage","Only a single large exposure is harmful","Effects are completely independent of duration"],ans:1,exp:"The <strong>'dose effect'</strong> means that exposure during AND after pregnancy — including breastfeeding — continues to cause <strong>neurological and pathological damage</strong>. Harm accumulates with ongoing exposure over time."},
+  {cat:"environmental",q:"How can chemical pollutants affect pregnancy through the FATHER?",opts:["They cannot affect the father at all","They damage paternal chromosomes, potentially causing miscarriages or genetic defects in offspring","They reduce paternal age","They cause direct placental damage"],ans:1,exp:"Chemical pollutants may <strong>damage the father's chromosomes</strong>, which can result in miscarriages or genetic defects — an important paternal teratogenic pathway often overlooked."},
+  {cat:"environmental",q:"The extent of harm from radiation exposure during pregnancy is described by Shaffer & Kipp as:",opts:["Fully quantified across all dose levels","Well-established and predictable by trimester","Not fully known — exact extent remains uncertain","Zero risk below 100mSv"],ans:2,exp:"Shaffer & Kipp note that <strong>the exact extent of harm from radiation is not fully known</strong>, though it may lead to miscarriage, disability, or mental retardation. This scientific uncertainty reinforces precautionary approaches."},
+  {cat:"environmental",q:"Which of the following radiation sources can a pregnant woman most easily avoid?",opts:["Background radiation from natural sources","Cosmic radiation from the Earth's atmosphere","Non-urgent dental or skeletal X-rays (postpone; use lead apron if necessary)","Radiation from electronic home appliances"],ans:2,exp:"<strong>Non-urgent medical X-rays</strong> (dental, skeletal) are the most easily avoided source. They should be postponed during pregnancy; if medically essential, a <strong>lead apron shielding the abdomen</strong> must be used."}
+];
+
+const catLabel = {
+  substances:"Substances", medications:"Medications",
+  illegal:"Illegal Drugs", infectious:"Infectious Agents", environmental:"Environmental"
+};
+
+let current = 0;
+let correct = 0;
+let wrong = 0;
+let catScores = {substances:[0,0],medications:[0,0],illegal:[0,0],infectious:[0,0],environmental:[0,0]};
+let answered = false;
+
+function render() {
+  const stage = document.getElementById('stage');
+
+  if (current >= questions.length) {
+    showResults(); return;
+  }
+
+  const q = questions[current];
+
+  // dot trail
+  let dots = '';
+  for (let i = 0; i < questions.length; i++) {
+    let cls = 'dot';
+    if (i < current) cls += (catScores[questions[i].cat] ? '' : '');
+    if (i === current) cls += ' current';
+    dots += `<div class="${cls}" id="dot-${i}"></div>`;
+  }
+
+  const letters = ['A','B','C','D'];
+  let opts = q.opts.map((o, i) => `
+    <button class="opt-btn" id="opt-${i}" onclick="pick(${i})">
+      <span class="opt-letter"><span class="opt-letter-txt">${letters[i]}</span></span>
+      <span>${o}</span>
+    </button>
+  `).join('');
+
+  stage.innerHTML = `
+    <div class="dot-trail">${dots}</div>
+    <div class="q-counter">
+      <div class="q-num-label">Question ${current + 1} <span style="color:var(--border)">/ 50</span></div>
+      <span class="cat-pill cat-${q.cat}">${catLabel[q.cat]}</span>
+    </div>
+    <div class="q-card" id="qCard">
+      <div class="q-text-wrap">
+        <div class="q-text">${q.q}</div>
+      </div>
+      <div class="options">${opts}</div>
+      <div class="feedback-panel" id="fbPanel">
+        <div class="feedback-inner" id="fbInner"></div>
+      </div>
+    </div>
+    <div class="next-wrap">
+      <button class="next-btn" id="nextBtn" onclick="nextQ()">
+        ${current < 49 ? 'Next Question →' : 'See Results →'}
+      </button>
+    </div>
+  `;
+
+  answered = false;
+  updateBar();
+}
+
+function pick(choice) {
+  if (answered) return;
+  answered = true;
+
+  const q = questions[current];
+  const isCorrect = choice === q.ans;
+
+  if (isCorrect) {
+    correct++;
+    catScores[q.cat][0]++;
+  } else {
+    wrong++;
+  }
+  catScores[q.cat][1]++;
+
+  // Style options
+  const btns = document.querySelectorAll('.opt-btn');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (i === q.ans && i === choice) b.classList.add('correct-ans');
+    else if (i === choice) b.classList.add('wrong-ans');
+    else if (i === q.ans) b.classList.add('reveal-ans');
+  });
+
+  // Update dot
+  const dot = document.getElementById(`dot-${current}`);
+  dot.className = 'dot ' + (isCorrect ? 'answered-c' : 'answered-w');
+
+  // Show feedback
+  const icon = isCorrect ? '✓' : '✗';
+  const iconCls = isCorrect ? 'c' : 'w';
+  const verdict = isCorrect ? 'Correct!' : 'Incorrect';
+  const wrongNote = !isCorrect
+    ? `<div style="margin-bottom:6px;font-size:12px;color:var(--gold);">Correct answer: <strong style="color:var(--text)">${['A','B','C','D'][q.ans]}: ${q.opts[q.ans]}</strong></div>`
+    : '';
+
+  document.getElementById('fbInner').innerHTML = `
+    <div class="fb-icon ${iconCls}">${icon}</div>
+    <div class="fb-text">
+      <div class="fb-verdict ${iconCls}">${verdict}</div>
+      ${wrongNote}
+      <div class="fb-exp">${q.exp}</div>
+    </div>
+  `;
+
+  // Animate in
+  requestAnimationFrame(() => {
+    document.getElementById('fbPanel').classList.add('visible');
+    document.getElementById('nextBtn').classList.add('show');
+  });
+
+  updateBar();
+}
+
+function nextQ() {
+  current++;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateBar() {
+  const pct = (current / questions.length) * 100;
+  document.getElementById('pbFill').style.width = pct + '%';
+  document.getElementById('pbLabel').textContent =
+    current < questions.length ? `Question ${current + 1} of 50` : 'Complete';
+  document.getElementById('scorePill').innerHTML = `✓ ${correct} &nbsp;✗ ${wrong}`;
+}
+
+function showResults() {
+  const stage = document.getElementById('stage');
+  const pct = Math.round((correct / 50) * 100);
+  let msg = '';
+  if (pct >= 90) msg = 'Outstanding — you are exam-ready on teratogens.';
+  else if (pct >= 75) msg = 'Strong grasp of teratogenic mechanisms and categories.';
+  else if (pct >= 60) msg = 'Good foundation — review the categories you found tricky.';
+  else if (pct >= 40) msg = 'Keep studying — focus on mechanisms, not just names.';
+  else msg = 'Return to your reference notes and retake the quiz.';
+
+  const catOrder = ['substances','medications','illegal','infectious','environmental'];
+  let catHtml = catOrder.map(c => {
+    const [sc, tot] = catScores[c];
+    const cpct = tot > 0 ? Math.round((sc/tot)*100) : 0;
+    let cls = cpct >= 80 ? 'perfect' : cpct >= 60 ? 'good' : 'needs';
+    return `<div class="cat-bk-item">
+      <div class="cat-bk-name cat-pill cat-${c}" style="border-radius:4px;padding:2px 6px;">${catLabel[c]}</div>
+      <div class="cat-bk-score ${cls}" style="margin-top:8px;">${sc}/${tot}</div>
+    </div>`;
+  }).join('');
+
+  stage.innerHTML = `
+    <div class="results show">
+      <div class="results-card">
+        <div class="results-big">${correct}</div>
+        <div class="results-of">out of 50 &nbsp;·&nbsp; ${pct}%</div>
+        <div class="breakdown">
+          <div class="bk"><div class="bk-n c">${correct}</div><div class="bk-l">Correct</div></div>
+          <div class="bk"><div class="bk-n w">${wrong}</div><div class="bk-l">Wrong</div></div>
+        </div>
+        <div class="results-msg">${msg}</div>
+        <div class="cat-breakdown">${catHtml}</div>
+        <button class="restart-btn" onclick="restart()">Retake Quiz</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('pbFill').style.width = '100%';
+  document.getElementById('pbLabel').textContent = 'Complete!';
+}
+
+function restart() {
+  current = 0; correct = 0; wrong = 0;
+  catScores = {substances:[0,0],medications:[0,0],illegal:[0,0],infectious:[0,0],environmental:[0,0]};
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+render();
+</script>
+</body>
+</html>
